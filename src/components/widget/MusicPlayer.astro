@@ -1,0 +1,276 @@
+---
+import { Icon } from "astro-icon/components";
+import { appearanceConfig } from "../../config";
+import { url } from "../../utils/url-utils";
+import WidgetLayout from "./WidgetLayout.astro";
+
+const { music } = appearanceConfig;
+const tracks = import.meta.glob<string>(
+    "../../assets/music/**/*.{mp3,m4a,aac,ogg,oga,opus,wav,flac,webm}",
+    { eager: true, query: "?url", import: "default" },
+);
+const playlist = Object.entries(tracks)
+    .sort(([a], [b]) => a.localeCompare(b, "zh-CN", { numeric: true }))
+    .map(([path, src]) => ({
+        src,
+        title: path === `../../${music.src}` ? music.title : path.split("/").pop()!.replace(/\.[^.]+$/, ""),
+        artist: path === `../../${music.src}` ? music.artist : "",
+    }));
+
+// Keep supporting a configured public file alongside the automatically found tracks.
+if (music.src.startsWith("/")) {
+    playlist.unshift({ src: url(music.src), title: music.title, artist: music.artist });
+}
+const initialIndex = Math.max(0, playlist.findIndex(track => track.src === tracks[`../../${music.src}`]));
+const currentTrack = playlist[initialIndex];
+---
+<WidgetLayout id="music-player" name="Music">
+    <music-playlist class="block" data-initial-index={initialIndex}>
+        <div class="music-intro">
+            <div class="music-art" aria-hidden="true"><Icon name="material-symbols:music-note-rounded" /></div>
+            <div class="music-info">
+                <p data-title class="music-title text-90" aria-live="polite">{currentTrack?.title || "Music"}</p>
+                <p data-artist class="music-artist text-50">{currentTrack?.artist || "让日常，多一点旋律。"}</p>
+            </div>
+        </div>
+        {currentTrack ? (
+            <>
+                <audio class="w-full mt-2" controls preload="metadata" src={currentTrack.src} aria-label={currentTrack.title} />
+                <div data-controls hidden>
+                    <input data-seek class="music-range seek" type="range" min="0" max="100" step="0.1" value="0" disabled aria-label="播放进度" />
+                    <div class="music-time text-50"><span data-elapsed>0:00</span><span data-duration>--:--</span></div>
+                    <div class="music-transport">
+                        <button data-previous type="button" class="music-icon btn-plain" aria-label="上一首"><Icon name="material-symbols:skip-previous-rounded" /></button>
+                        <button data-play type="button" class="music-play" aria-label="播放" aria-pressed="false" aria-keyshortcuts="Space" title="播放 / 暂停（空格）">
+                            <span data-play-icon><Icon name="material-symbols:play-arrow-rounded" /></span>
+                            <span data-pause-icon hidden><Icon name="material-symbols:pause-rounded" /></span>
+                        </button>
+                        <button data-next type="button" class="music-icon btn-plain" aria-label="下一首"><Icon name="material-symbols:skip-next-rounded" /></button>
+                    </div>
+                    <div class="music-options">
+                        <button data-mode type="button" aria-pressed="false" aria-label="开启随机播放" class="music-mode btn-plain">
+                            <Icon name="material-symbols:shuffle-rounded" /><span data-mode-label>顺序循环</span>
+                        </button>
+                        <div class="music-volume">
+                            <button data-mute type="button" class="btn-plain" aria-label="静音" aria-pressed="false">
+                                <span data-volume-icon><Icon name="material-symbols:volume-up-rounded" /></span>
+                                <span data-muted-icon hidden><Icon name="material-symbols:volume-off-rounded" /></span>
+                            </button>
+                            <input data-volume class="music-range" type="range" min="0" max="1" step="0.01" value="1" aria-label="音量" />
+                        </div>
+                    </div>
+                </div>
+                <p data-error class="text-50 text-xs mt-2 px-1" role="status" hidden></p>
+                <div class="queue-heading text-50"><span>接下来</span><span>共 {playlist.length} 首</span></div>
+                <ol data-queue class="music-queue" aria-label="当前歌曲和接下来两首">
+                    {playlist.map((_, offset) => {
+                        const index = (initialIndex + offset) % playlist.length;
+                        const track = playlist[index];
+                        return <li data-position={offset} hidden={offset >= 3}>
+                            <button type="button" data-track data-index={index} data-src={track.src} data-title={track.title} data-artist={track.artist}
+                                aria-current={offset === 0 ? "true" : "false"} class="playlist-track">
+                                <span class="track-number">{String(index + 1).padStart(2, "0")}</span>
+                                <span class="track-title">{track.title}</span>
+                                <Icon name="material-symbols:graphic-eq-rounded" class="track-wave" />
+                            </button>
+                        </li>;
+                    })}
+                </ol>
+            </>
+        ) : <p class="text-50 text-sm px-2 mt-2">静候一段喜欢的旋律</p>}
+    </music-playlist>
+</WidgetLayout>
+
+<style>
+    music-playlist { padding: .25rem .25rem 0; }
+    [hidden] { display: none !important; }
+    music-playlist[data-ready] audio { display: none; }
+    .music-intro { display: flex; align-items: center; gap: .75rem; padding: .25rem 0 1.1rem; }
+    .music-art { display: grid; place-items: center; flex-shrink: 0; width: 3rem; height: 3rem; border-radius: 50%; color: var(--primary); background: radial-gradient(circle, var(--card-bg) 28%, transparent 30%), repeating-radial-gradient(circle, var(--btn-regular-bg) 0 3px, var(--page-bg) 4px 5px); border: 1px solid var(--line-divider); }
+    .music-art svg { width: 1.25rem; height: 1.25rem; }
+    .music-info { min-width: 0; }
+    .music-kicker { font-size: .6rem; letter-spacing: .12em; color: var(--primary); margin-bottom: .25rem; }
+    .music-title { font-size: .875rem; line-height: 1.5; font-weight: 700; overflow-wrap: anywhere; }
+    .music-artist { font-size: .7rem; margin-top: .2rem; overflow-wrap: anywhere; }
+    .music-range { appearance: none; display: block; height: 4px; border-radius: 999px; background: linear-gradient(to right, var(--primary) var(--progress, 100%), var(--btn-regular-bg) var(--progress, 100%)); cursor: pointer; min-width: 0; }
+    .music-range::-webkit-slider-thumb { appearance: none; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); border: 2px solid var(--card-bg); box-shadow: 0 0 0 1px var(--primary); }
+    .music-range::-moz-range-thumb { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); border: 2px solid var(--card-bg); }
+    .music-range:disabled { cursor: default; opacity: .5; }
+    .music-range:focus-visible, button:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; }
+    .seek { width: 100%; --progress: 0%; }
+    .music-time { display: flex; justify-content: space-between; margin-top: .5rem; font-size: .65rem; font-variant-numeric: tabular-nums; }
+    .music-transport { display: flex; align-items: center; justify-content: center; gap: 1.25rem; margin: .25rem 0 .65rem; }
+    .music-icon { width: 2rem; height: 2rem; border-radius: 50%; color: var(--btn-content); }
+    .music-icon svg { width: 1.5rem; height: 1.5rem; }
+    .music-play { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%; color: var(--card-bg); background: var(--primary); box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 30%, transparent); transition: transform .2s, box-shadow .2s; }
+    .music-play:hover { transform: translateY(-2px); box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 40%, transparent); }
+    .music-play:active { transform: scale(.94); }
+    .music-play svg { width: 1.6rem; height: 1.6rem; }
+    .music-options { display: flex; align-items: center; justify-content: space-between; gap: .25rem; padding-bottom: .85rem; border-bottom: 1px solid var(--line-divider); }
+    .music-mode { gap: .25rem; border-radius: .5rem; padding: .3rem .4rem; font-size: .65rem; }
+    .music-mode[aria-pressed="true"] { color: var(--primary); background: var(--btn-regular-bg); }
+    .music-mode svg, .music-volume svg { width: 1rem; height: 1rem; }
+    .music-volume { display: flex; align-items: center; gap: .35rem; }
+    .music-volume button { width: 1.5rem; height: 1.5rem; border-radius: 50%; }
+    .music-volume input { width: 2.5rem; height: 3px; }
+    .queue-heading { display: flex; align-items: center; justify-content: space-between; font-size: .6rem; letter-spacing: .05em; padding: .9rem .25rem .5rem; }
+    .music-queue { display: flex; flex-direction: column; gap: .25rem; }
+    .music-queue li { transition: opacity .25s, filter .25s, transform .25s; transform-origin: left center; }
+    .playlist-track { display: flex; align-items: center; gap: .6rem; width: 100%; min-height: 2.5rem; padding: .55rem .6rem; text-align: left; border-radius: .65rem; font-size: .75rem; color: var(--btn-content); }
+    .playlist-track[aria-current="true"] { background: var(--btn-regular-bg); color: var(--primary); font-weight: 600; }
+    .track-number { font-size: .6rem; font-variant-numeric: tabular-nums; opacity: .6; }
+    .track-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .track-wave { width: 1rem; height: 1rem; flex-shrink: 0; visibility: hidden; }
+    [aria-current="true"] .track-wave { visibility: visible; }
+    .music-queue li[data-position="1"] { opacity: .58; filter: blur(.45px); transform: scale(.97); }
+    .music-queue li[data-position="2"] { opacity: .32; filter: blur(.9px); transform: scale(.94); }
+    .music-queue li:hover, .music-queue li:focus-within { opacity: 1; filter: none; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+        .music-queue li, .music-play { transition: none; }
+    }
+</style>
+
+<script>
+    class MusicPlaylist extends HTMLElement {
+        private initialized = false;
+        private onSpace?: (event: KeyboardEvent) => void;
+
+        connectedCallback() {
+            if (this.onSpace) document.addEventListener("keydown", this.onSpace);
+            if (this.initialized) return;
+            const audio = this.querySelector("audio");
+            const buttons = Array.from(this.querySelectorAll<HTMLButtonElement>("[data-track]"))
+                .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
+            if (!audio || !buttons.length) return;
+            this.initialized = true;
+
+            const title = this.querySelector<HTMLElement>("[data-title]")!;
+            const artist = this.querySelector<HTMLElement>("[data-artist]")!;
+            const error = this.querySelector<HTMLElement>("[data-error]")!;
+            const mode = this.querySelector<HTMLButtonElement>("[data-mode]")!;
+            const modeLabel = this.querySelector<HTMLElement>("[data-mode-label]")!;
+            const queue = this.querySelector<HTMLOListElement>("[data-queue]")!;
+            const play = this.querySelector<HTMLButtonElement>("[data-play]")!;
+            const seek = this.querySelector<HTMLInputElement>("[data-seek]")!;
+            const volume = this.querySelector<HTMLInputElement>("[data-volume]")!;
+            const mute = this.querySelector<HTMLButtonElement>("[data-mute]")!;
+            let currentIndex = Number(this.dataset.initialIndex);
+            let shuffle = false;
+            let upcoming: number[] = [];
+            const history: number[] = [];
+
+            const renderQueue = () => {
+                while (upcoming.length < Math.min(2, buttons.length - 1)) {
+                    const candidates = buttons.map((_, index) => index).filter(index => index !== currentIndex && !upcoming.includes(index));
+                    upcoming.push(shuffle
+                        ? candidates[Math.floor(Math.random() * candidates.length)]
+                        : ((upcoming.at(-1) ?? currentIndex) + 1) % buttons.length);
+                }
+                buttons.forEach(button => { button.parentElement!.hidden = true; button.setAttribute("aria-current", "false"); });
+                [currentIndex, ...upcoming].forEach((index, position) => {
+                    const row = buttons[index].parentElement!;
+                    row.hidden = false;
+                    row.dataset.position = String(position);
+                    queue.append(row);
+                });
+                buttons[currentIndex].setAttribute("aria-current", "true");
+            };
+            const formatTime = (time: number) => `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, "0")}`;
+            const updateTime = () => {
+                const ready = Number.isFinite(audio.duration) && audio.duration > 0;
+                this.querySelector<HTMLElement>("[data-elapsed]")!.textContent = formatTime(audio.currentTime || 0);
+                this.querySelector<HTMLElement>("[data-duration]")!.textContent = ready ? formatTime(audio.duration) : "--:--";
+                seek.disabled = !ready;
+                seek.max = String(ready ? audio.duration : 100);
+                seek.value = String(audio.currentTime || 0);
+                seek.style.setProperty("--progress", `${ready ? audio.currentTime / audio.duration * 100 : 0}%`);
+            };
+            const updatePlay = () => {
+                play.setAttribute("aria-label", audio.paused ? "播放" : "暂停");
+                play.setAttribute("aria-pressed", String(!audio.paused));
+                this.querySelector<HTMLElement>("[data-play-icon]")!.hidden = !audio.paused;
+                this.querySelector<HTMLElement>("[data-pause-icon]")!.hidden = audio.paused;
+            };
+            const startPlayback = () => {
+                void audio.play().catch(() => {
+                    error.textContent = "无法播放，请尝试点击播放按钮或选择其他歌曲。";
+                    error.hidden = false;
+                    updatePlay();
+                });
+            };
+            this.onSpace = (event: KeyboardEvent) => {
+                if (event.code !== "Space" || event.defaultPrevented || event.isComposing ||
+                    event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+                // Preserve typing and the native keyboard behavior of focused controls.
+                if (event.target instanceof Element && event.target.closest(
+                    "input, textarea, select, button, a, audio, video, [role='button'], [contenteditable]:not([contenteditable='false'])",
+                )) return;
+                event.preventDefault();
+                if (!event.repeat) audio.paused ? startPlayback() : audio.pause();
+            };
+            document.addEventListener("keydown", this.onSpace);
+            const selectTrack = (index: number, playing: boolean, remember = true) => {
+                const nextIndex = (index + buttons.length) % buttons.length;
+                if (remember && nextIndex !== currentIndex) history.push(currentIndex);
+                const queuedPosition = upcoming.indexOf(nextIndex);
+                upcoming = queuedPosition >= 0 ? upcoming.slice(queuedPosition + 1) : [];
+                currentIndex = nextIndex;
+                const selected = buttons[currentIndex];
+                audio.src = selected.dataset.src!;
+                audio.setAttribute("aria-label", selected.dataset.title!);
+                title.textContent = selected.dataset.title!;
+                artist.textContent = selected.dataset.artist || "让日常，多一点旋律。";
+                error.hidden = true;
+                renderQueue();
+                updateTime();
+                if (playing) startPlayback();
+            };
+            const nextTrack = () => upcoming[0] ?? currentIndex;
+
+            play.addEventListener("click", () => audio.paused ? startPlayback() : audio.pause());
+            seek.addEventListener("input", () => { if (!seek.disabled) audio.currentTime = Number(seek.value); });
+            volume.addEventListener("input", () => { audio.volume = Number(volume.value); audio.muted = audio.volume === 0; });
+            mute.addEventListener("click", () => { audio.muted = !audio.muted; if (!audio.muted && audio.volume === 0) audio.volume = 1; });
+            const updateVolume = () => {
+                const muted = audio.muted || audio.volume === 0;
+                volume.value = String(muted ? 0 : audio.volume);
+                volume.style.setProperty("--progress", `${Number(volume.value) * 100}%`);
+                mute.setAttribute("aria-label", muted ? "取消静音" : "静音");
+                mute.setAttribute("aria-pressed", String(muted));
+                this.querySelector<HTMLElement>("[data-volume-icon]")!.hidden = muted;
+                this.querySelector<HTMLElement>("[data-muted-icon]")!.hidden = !muted;
+            };
+            mode.addEventListener("click", () => {
+                shuffle = !shuffle;
+                mode.setAttribute("aria-pressed", String(shuffle));
+                mode.setAttribute("aria-label", shuffle ? "关闭随机播放" : "开启随机播放");
+                modeLabel.textContent = shuffle ? "随机播放" : "顺序循环";
+                upcoming = [];
+                renderQueue();
+            });
+            buttons.forEach((button, index) => button.addEventListener("click", () => selectTrack(index, true)));
+            this.querySelector("[data-previous]")!.addEventListener("click", () => {
+                const previous = shuffle ? history.pop() : undefined;
+                selectTrack(previous ?? currentIndex - 1, !audio.paused, false);
+            });
+            this.querySelector("[data-next]")!.addEventListener("click", () => selectTrack(nextTrack(), !audio.paused));
+            audio.addEventListener("ended", () => selectTrack(nextTrack(), true));
+            audio.addEventListener("play", () => { error.hidden = true; updatePlay(); });
+            audio.addEventListener("pause", updatePlay);
+            audio.addEventListener("volumechange", updateVolume);
+            for (const event of ["timeupdate", "loadedmetadata", "durationchange", "emptied"]) audio.addEventListener(event, updateTime);
+            audio.addEventListener("error", () => { error.textContent = "音频加载失败，请选择其他歌曲。"; error.hidden = false; });
+            renderQueue();
+            updateTime();
+            updatePlay();
+            updateVolume();
+            this.querySelector<HTMLElement>("[data-controls]")!.hidden = false;
+            this.dataset.ready = "true";
+        }
+
+        disconnectedCallback() {
+            if (this.onSpace) document.removeEventListener("keydown", this.onSpace);
+        }
+    }
+    if (!customElements.get("music-playlist")) customElements.define("music-playlist", MusicPlaylist);
+</script>
