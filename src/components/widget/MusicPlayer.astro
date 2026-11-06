@@ -6,22 +6,35 @@ import WidgetLayout from "./WidgetLayout.astro";
 
 const { music } = appearanceConfig;
 const tracks = import.meta.glob<string>(
-    "../../assets/music/**/*.{mp3,m4a,aac,ogg,oga,opus,wav,flac,webm}",
-    { eager: true, query: "?url", import: "default" },
+	"../../assets/music/**/*.{mp3,m4a,aac,ogg,oga,opus,wav,flac,webm}",
+	{ eager: true, query: "?url", import: "default" },
 );
 const playlist = Object.entries(tracks)
-    .sort(([a], [b]) => a.localeCompare(b, "zh-CN", { numeric: true }))
-    .map(([path, src]) => ({
-        src,
-        title: path === `../../${music.src}` ? music.title : path.split("/").pop()!.replace(/\.[^.]+$/, ""),
-        artist: path === `../../${music.src}` ? music.artist : "",
-    }));
+	.sort(([a], [b]) => a.localeCompare(b, "zh-CN", { numeric: true }))
+	.map(([path, src]) => ({
+		src,
+		title:
+			path === `../../${music.src}`
+				? music.title
+				: path
+						.split("/")
+						.pop()!
+						.replace(/\.[^.]+$/, ""),
+		artist: path === `../../${music.src}` ? music.artist : "",
+	}));
 
 // Keep supporting a configured public file alongside the automatically found tracks.
 if (music.src.startsWith("/")) {
-    playlist.unshift({ src: url(music.src), title: music.title, artist: music.artist });
+	playlist.unshift({
+		src: url(music.src),
+		title: music.title,
+		artist: music.artist,
+	});
 }
-const initialIndex = Math.max(0, playlist.findIndex(track => track.src === tracks[`../../${music.src}`]));
+const initialIndex = Math.max(
+	0,
+	playlist.findIndex((track) => track.src === tracks[`../../${music.src}`]),
+);
 const currentTrack = playlist[initialIndex];
 ---
 <WidgetLayout id="music-player" name="Music">
