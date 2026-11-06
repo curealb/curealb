@@ -40,6 +40,8 @@ export default defineConfig({
 			// the default value `transition-` cause transition delay
 			// when the Tailwind class `transition-all` is used
 			containers: ["main", "#toc"],
+			// Intercept navigation before slow images or audio finish loading.
+			loadOnIdle: false,
 			smoothScrolling: true,
 			cache: true,
 			preload: true,

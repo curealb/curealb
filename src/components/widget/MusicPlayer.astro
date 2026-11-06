@@ -16,10 +16,7 @@ const playlist = Object.entries(tracks)
 		title:
 			path === `../../${music.src}`
 				? music.title
-				: path
-						.split("/")
-						.pop()!
-						.replace(/\.[^.]+$/, ""),
+				: (path.split("/").pop() ?? path).replace(/\.[^.]+$/, ""),
 		artist: path === `../../${music.src}` ? music.artist : "",
 	}));
 
